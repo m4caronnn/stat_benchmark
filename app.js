@@ -1060,8 +1060,8 @@ function checkUrlParametersOnLoad() {
     }
 }
 
-// Generate & Copy Ultra-Short Shareable URL (Compact Compression + TinyURL)
-async function copyShareableLink(targetChar = null) {
+// Generate & Copy Clean Shareable URL (Ultra-Short 70 Chars for Discord/Socials)
+function copyShareableLink(targetChar = null) {
     if (state.data.length === 0) {
         const Toast = Swal.mixin({
             toast: true,
@@ -1080,52 +1080,33 @@ async function copyShareableLink(targetChar = null) {
     const selectedChar = targetChar || (benchmarkCharSelect ? benchmarkCharSelect.value.trim() : '');
     const baseUrl = window.location.origin + window.location.pathname;
 
-    const charCol = getCharColumn();
-    const classCol = getClassColumn();
-    
-    const charRow = state.data.find(r => r[charCol] && String(r[charCol]).trim().toLowerCase() === selectedChar.toLowerCase());
-    
-    let longUrl = '';
+    let shareUrl = '';
 
-    // Always compress full raw CSV text into URL Hash fragment (#csv=...)
-    let csvTextToCompress = state.lastRawCsvText;
-    if (!csvTextToCompress && state.data && state.data.length > 0) {
-        csvTextToCompress = Papa.unparse(state.data);
-    }
-
-    if (csvTextToCompress) {
-        try {
-            const compressed = LZString.compressToEncodedURIComponent(csvTextToCompress);
-            longUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
-        } catch (err) {
-            console.error('URL compression error:', err);
-            longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-        }
+    // If using project file or default dataset on Vercel, generate ultra-clean 70-char URL!
+    if (state.currentPreset === 'guild_damage' || !state.rawFile) {
+        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+    } else if (state.currentPreset === 'sample_sales') {
+        shareUrl = `${baseUrl}?file=sample${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
     } else {
-        longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    }
-
-    if (!longUrl) {
-        longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    }
-
-    // 3. Shorten URL via TinyURL API for an ultra-short 20-character link (e.g. https://tinyurl.com/2y6fke3g)
-    let finalShareUrl = longUrl;
-    try {
-        const tinyUrlApi = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
-        const res = await fetch(tinyUrlApi);
-        if (res.ok) {
-            const shortText = await res.text();
-            if (shortText && shortText.startsWith('http')) {
-                finalShareUrl = shortText.trim();
-            }
+        // For custom uploaded local files, compress into URL Hash fragment
+        let csvTextToCompress = state.lastRawCsvText;
+        if (!csvTextToCompress && state.data && state.data.length > 0) {
+            csvTextToCompress = Papa.unparse(state.data);
         }
-    } catch (apiErr) {
-        console.warn('TinyURL shortener offline or blocked, using compact URL:', apiErr);
+        if (csvTextToCompress) {
+            try {
+                const compressed = LZString.compressToEncodedURIComponent(csvTextToCompress);
+                shareUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
+            } catch (err) {
+                shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+            }
+        } else {
+            shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+        }
     }
 
     // Copy to clipboard automatically and show bottom toast alert
-    navigator.clipboard.writeText(finalShareUrl).then(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
         const Toast = Swal.mixin({
             toast: true,
             position: 'bottom',
