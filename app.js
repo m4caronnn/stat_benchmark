@@ -1087,31 +1087,22 @@ async function copyShareableLink(targetChar = null) {
     
     let longUrl = '';
 
-    // 1. Pack ALL characters across ALL classes into compact JSON format
-    if (state.data && state.data.length > 0) {
-        const validHeaders = state.headers.filter(h => h && h.trim());
-        const compactData = {
-            h: validHeaders,
-            r: state.data.map(r => validHeaders.map(h => r[h] !== undefined ? r[h] : ''))
-        };
-
-        try {
-            const jsonStr = JSON.stringify(compactData);
-            const compressed = LZString.compressToEncodedURIComponent(jsonStr);
-            longUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#data=${compressed}`;
-        } catch (e) {
-            console.error('Compact compression failed, fallback to raw csv:', e);
-        }
+    // Always compress full raw CSV text into URL Hash fragment (#csv=...)
+    let csvTextToCompress = state.lastRawCsvText;
+    if (!csvTextToCompress && state.data && state.data.length > 0) {
+        csvTextToCompress = Papa.unparse(state.data);
     }
 
-    // 2. Fallback to full CSV compression if class packing was skipped
-    if (!longUrl && state.lastRawCsvText) {
+    if (csvTextToCompress) {
         try {
-            const compressed = LZString.compressToEncodedURIComponent(state.lastRawCsvText);
+            const compressed = LZString.compressToEncodedURIComponent(csvTextToCompress);
             longUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
         } catch (err) {
+            console.error('URL compression error:', err);
             longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
         }
+    } else {
+        longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
     }
 
     if (!longUrl) {
@@ -1144,7 +1135,7 @@ async function copyShareableLink(targetChar = null) {
         });
         Toast.fire({
             icon: 'success',
-            title: `คัดลอกลิงก์สั้นแชร์ตัวละคร (${selectedChar || 'ตัวละคร'}) เรียบร้อยแล้ว! 📋`
+            title: `คัดลอกลิงก์แชร์ข้อมูลเรียบร้อยแล้ว! 📋`
         });
     }).catch(err => {
         console.error('Clipboard copy error:', err);
