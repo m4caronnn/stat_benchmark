@@ -1070,7 +1070,7 @@ function checkUrlParametersOnLoad() {
     }
 }
 
-// Generate & Copy Clean Shareable URL (Ultra-Short 70 Chars for Discord/Socials)
+// Generate & Copy Compressed Shareable URL (Self-contained CSV data in URL Hash)
 function copyShareableLink(targetChar = null) {
     if (state.data.length === 0) {
         const Toast = Swal.mixin({
@@ -1092,27 +1092,22 @@ function copyShareableLink(targetChar = null) {
 
     let shareUrl = '';
 
-    // If using project file or default dataset on Vercel, generate ultra-clean 70-char URL!
-    if (state.currentPreset === 'guild_damage' || !state.rawFile) {
-        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    } else if (state.currentPreset === 'sample_sales') {
-        shareUrl = `${baseUrl}?file=sample${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    } else {
-        // For custom uploaded local files, compress into URL Hash fragment
-        let csvTextToCompress = state.lastRawCsvText;
-        if (!csvTextToCompress && state.data && state.data.length > 0) {
-            csvTextToCompress = Papa.unparse(state.data);
-        }
-        if (csvTextToCompress) {
-            try {
-                const compressed = LZString.compressToEncodedURIComponent(csvTextToCompress);
-                shareUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
-            } catch (err) {
-                shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-            }
-        } else {
+    // Always compress full CSV text into URL Hash fragment (#csv=...)
+    let csvTextToCompress = state.lastRawCsvText;
+    if (!csvTextToCompress && state.data && state.data.length > 0) {
+        csvTextToCompress = Papa.unparse(state.data);
+    }
+
+    if (csvTextToCompress) {
+        try {
+            const compressed = LZString.compressToEncodedURIComponent(csvTextToCompress);
+            shareUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
+        } catch (err) {
+            console.error('URL compression error:', err);
             shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
         }
+    } else {
+        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
     }
 
     // Copy to clipboard automatically and show bottom toast alert
