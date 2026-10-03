@@ -978,13 +978,13 @@ function checkUrlParametersOnLoad() {
     const charParam = urlParams.get('char');
     const viewParam = urlParams.get('view');
 
-    // Single view mode check (Hide upload section & dropdown bar on shared report page)
+    // Single view mode check (Hide upload section, but keep selection bar & share button visible so users can switch characters!)
     if (viewParam === 'single' || (charParam && viewParam !== 'full')) {
         state.isSingleViewMode = true;
 
         if (uploadSection) uploadSection.classList.add('hidden');
-        if (benchmarkSelectBar) benchmarkSelectBar.classList.add('hidden');
-        if (btnShareCharLink) btnShareCharLink.classList.add('hidden');
+        if (benchmarkSelectBar) benchmarkSelectBar.classList.remove('hidden');
+        if (btnShareCharLink) btnShareCharLink.classList.remove('hidden');
         if (singleViewBanner) singleViewBanner.classList.remove('hidden');
         if (singleViewCharTitle && charParam) {
             singleViewCharTitle.textContent = `กำลังดูข้อมูลตัวละคร: ${charParam}`;
