@@ -997,15 +997,7 @@ function checkUrlParametersOnLoad() {
         if (singleViewBanner) singleViewBanner.classList.add('hidden');
     }
 
-    if (fileParam === 'guild_damage' || (!fileParam && !hash.includes('csv='))) {
-        loadGuildData(charParam);
-        return;
-    } else if (fileParam === 'sample') {
-        loadSampleData(charParam);
-        return;
-    }
-
-    // Check if compressed CSV data is in URL hash (#csv=...)
+    // 1. Check if compressed CSV data is in URL hash (#csv=...)
     if (hash && hash.includes('csv=')) {
         try {
             const compressedData = hash.split('csv=')[1].split('&')[0];
@@ -1019,9 +1011,18 @@ function checkUrlParametersOnLoad() {
             console.error('Failed to decompress CSV from URL hash:', e);
         }
     }
+
+    // 2. Fallback to preset files if no CSV hash fragment is provided
+    if (fileParam === 'guild_damage' || (!fileParam && !hash.includes('csv='))) {
+        loadGuildData(charParam);
+        return;
+    } else if (fileParam === 'sample') {
+        loadSampleData(charParam);
+        return;
+    }
 }
 
-// Generate & Copy Shareable URL
+// Generate & Copy Shareable URL (Data compressed in URL Hash for Vercel/GitHub Pages)
 function copyShareableLink(targetChar = null) {
     if (state.data.length === 0) {
         const Toast = Swal.mixin({
@@ -1041,49 +1042,19 @@ function copyShareableLink(targetChar = null) {
     const selectedChar = targetChar || (benchmarkCharSelect ? benchmarkCharSelect.value : '');
     const baseUrl = window.location.origin + window.location.pathname;
 
-    // Default preset to guild_damage if not set
-    const preset = state.currentPreset || 'guild_damage';
     let shareUrl = '';
 
-    if (preset === 'guild_damage') {
-        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    } else if (preset === 'sample_sales') {
-        shareUrl = `${baseUrl}?file=sample${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
-    } else {
-        // Compress raw CSV text into URL Hash fragment
-        if (!state.lastRawCsvText) {
-            const Toast = Swal.mixin({
-                toast: true,
-                position: 'bottom',
-                showConfirmButton: false,
-                timer: 2500,
-                timerProgressBar: true
-            });
-            Toast.fire({
-                icon: 'error',
-                title: 'ไม่พบข้อมูล CSV ดิบ'
-            });
-            return;
-        }
-
+    // Always compress raw CSV text into URL Hash fragment for self-contained sharing
+    if (state.lastRawCsvText) {
         try {
             const compressed = LZString.compressToEncodedURIComponent(state.lastRawCsvText);
             shareUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar || '')}&view=single#csv=${compressed}`;
         } catch (err) {
-            console.error(err);
-            const Toast = Swal.mixin({
-                toast: true,
-                position: 'bottom',
-                showConfirmButton: false,
-                timer: 3000,
-                timerProgressBar: true
-            });
-            Toast.fire({
-                icon: 'error',
-                title: 'ไฟล์ขนาดใหญ่เกินไปสำหรับ URL'
-            });
-            return;
+            console.error('URL compression error:', err);
+            shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
         }
+    } else {
+        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
     }
 
     // Copy to clipboard automatically and show bottom toast alert
