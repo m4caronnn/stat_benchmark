@@ -997,7 +997,45 @@ function checkUrlParametersOnLoad() {
         if (singleViewBanner) singleViewBanner.classList.add('hidden');
     }
 
-    // 1. Check if compressed CSV data is in URL hash (#csv=...)
+    // 1. Check if compact class JSON data is in URL hash (#data=...)
+    if (hash && hash.includes('data=')) {
+        try {
+            const compressedData = hash.split('data=')[1].split('&')[0];
+            const decompressedJson = LZString.decompressFromEncodedURIComponent(compressedData);
+            if (decompressedJson) {
+                const parsed = JSON.parse(decompressedJson);
+                if (parsed.h && parsed.r) {
+                    state.headers = parsed.h;
+                    state.data = parsed.r.map(rowVals => {
+                        const obj = {};
+                        parsed.h.forEach((h, idx) => {
+                            obj[h] = rowVals[idx];
+                        });
+                        return obj;
+                    });
+                    state.filteredData = [...state.data];
+                    state.currentPreset = null;
+
+                    if (workspaceSection) workspaceSection.classList.remove('hidden');
+                    populateBenchmarkSelectors();
+
+                    const charCol = getCharColumn();
+                    if (charParam && benchmarkCharSelect) {
+                        const matchingRow = state.data.find(r => String(r[charCol]).toLowerCase().trim() === charParam.toLowerCase().trim());
+                        if (matchingRow) {
+                            benchmarkCharSelect.value = matchingRow[charCol];
+                        }
+                    }
+                    renderCharacterBenchmark();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to decompress JSON data from URL hash:', e);
+        }
+    }
+
+    // 2. Check if raw CSV data is in URL hash (#csv=...)
     if (hash && hash.includes('csv=')) {
         try {
             const compressedData = hash.split('csv=')[1].split('&')[0];
@@ -1012,8 +1050,8 @@ function checkUrlParametersOnLoad() {
         }
     }
 
-    // 2. Fallback to preset files if no CSV hash fragment is provided
-    if (fileParam === 'guild_damage' || (!fileParam && !hash.includes('csv='))) {
+    // 3. Fallback to preset files if no CSV/data hash fragment is provided
+    if (fileParam === 'guild_damage' || (!fileParam && !hash.includes('csv=') && !hash.includes('data='))) {
         loadGuildData(charParam);
         return;
     } else if (fileParam === 'sample') {
@@ -1022,8 +1060,8 @@ function checkUrlParametersOnLoad() {
     }
 }
 
-// Generate & Copy Shareable URL (Data compressed in URL Hash for Vercel/GitHub Pages)
-function copyShareableLink(targetChar = null) {
+// Generate & Copy Ultra-Short Shareable URL (Compact Compression + TinyURL)
+async function copyShareableLink(targetChar = null) {
     if (state.data.length === 0) {
         const Toast = Swal.mixin({
             toast: true,
@@ -1039,36 +1077,77 @@ function copyShareableLink(targetChar = null) {
         return;
     }
 
-    const selectedChar = targetChar || (benchmarkCharSelect ? benchmarkCharSelect.value : '');
+    const selectedChar = targetChar || (benchmarkCharSelect ? benchmarkCharSelect.value.trim() : '');
     const baseUrl = window.location.origin + window.location.pathname;
 
-    let shareUrl = '';
+    const charCol = getCharColumn();
+    const classCol = getClassColumn();
+    
+    const charRow = state.data.find(r => r[charCol] && String(r[charCol]).trim().toLowerCase() === selectedChar.toLowerCase());
+    
+    let longUrl = '';
 
-    // Always compress raw CSV text into URL Hash fragment for self-contained sharing
-    if (state.lastRawCsvText) {
+    // 1. Pack only peers of this character's class into compact JSON format
+    if (charRow) {
+        const charClass = String(charRow[classCol] || '').trim();
+        const classPeers = state.data.filter(r => r[classCol] && String(r[classCol]).trim().toLowerCase() === charClass.toLowerCase());
+        
+        const validHeaders = state.headers.filter(h => h && h.trim());
+        const compactData = {
+            h: validHeaders,
+            r: classPeers.map(r => validHeaders.map(h => r[h] !== undefined ? r[h] : ''))
+        };
+
+        try {
+            const jsonStr = JSON.stringify(compactData);
+            const compressed = LZString.compressToEncodedURIComponent(jsonStr);
+            longUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#data=${compressed}`;
+        } catch (e) {
+            console.error('Compact compression failed, fallback to raw csv:', e);
+        }
+    }
+
+    // 2. Fallback to full CSV compression if class packing was skipped
+    if (!longUrl && state.lastRawCsvText) {
         try {
             const compressed = LZString.compressToEncodedURIComponent(state.lastRawCsvText);
-            shareUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar || '')}&view=single#csv=${compressed}`;
+            longUrl = `${baseUrl}?char=${encodeURIComponent(selectedChar)}&view=single#csv=${compressed}`;
         } catch (err) {
-            console.error('URL compression error:', err);
-            shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+            longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
         }
-    } else {
-        shareUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+    }
+
+    if (!longUrl) {
+        longUrl = `${baseUrl}?file=guild_damage${selectedChar ? '&char=' + encodeURIComponent(selectedChar) : ''}&view=single`;
+    }
+
+    // 3. Shorten URL via TinyURL API for an ultra-short 20-character link (e.g. https://tinyurl.com/2y6fke3g)
+    let finalShareUrl = longUrl;
+    try {
+        const tinyUrlApi = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+        const res = await fetch(tinyUrlApi);
+        if (res.ok) {
+            const shortText = await res.text();
+            if (shortText && shortText.startsWith('http')) {
+                finalShareUrl = shortText.trim();
+            }
+        }
+    } catch (apiErr) {
+        console.warn('TinyURL shortener offline or blocked, using compact URL:', apiErr);
     }
 
     // Copy to clipboard automatically and show bottom toast alert
-    navigator.clipboard.writeText(shareUrl).then(() => {
+    navigator.clipboard.writeText(finalShareUrl).then(() => {
         const Toast = Swal.mixin({
             toast: true,
             position: 'bottom',
             showConfirmButton: false,
-            timer: 2500,
+            timer: 3000,
             timerProgressBar: true
         });
         Toast.fire({
             icon: 'success',
-            title: `คัดลอกลิงก์แชร์ตัวละคร ${selectedChar ? '(' + selectedChar + ')' : ''} เรียบร้อยแล้ว! 📋`
+            title: `คัดลอกลิงก์สั้นแชร์ตัวละคร (${selectedChar || 'ตัวละคร'}) เรียบร้อยแล้ว! 📋`
         });
     }).catch(err => {
         console.error('Clipboard copy error:', err);
