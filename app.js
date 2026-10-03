@@ -249,9 +249,13 @@ function parseCSVText(csvText, delimiter, autoSelectChar = null) {
                 const matchingRow = state.data.find(r => String(r[charCol]).toLowerCase().trim() === autoSelectChar.toLowerCase().trim());
                 if (matchingRow) {
                     benchmarkCharSelect.value = matchingRow[charCol];
+                } else if (state.data.length > 0) {
+                    benchmarkCharSelect.value = state.data[0][charCol];
                 } else {
                     benchmarkCharSelect.value = '';
                 }
+            } else if (benchmarkCharSelect && state.data.length > 0) {
+                benchmarkCharSelect.value = state.data[0][charCol];
             } else if (benchmarkCharSelect) {
                 benchmarkCharSelect.value = '';
             }
@@ -933,7 +937,10 @@ function switchToTab(tabBtnId) {
 // Load Pre-baked Sample Data
 function loadSampleData(autoSelectChar = null) {
     fetch('sample_sales_thai.csv')
-        .then(res => res.text())
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.text();
+        })
         .then(text => {
             selectEncoding.value = 'UTF-8';
             selectDelimiter.value = '';
@@ -955,14 +962,17 @@ function loadSampleData(autoSelectChar = null) {
 function loadGuildData(autoSelectChar = null) {
     state.currentPreset = 'guild_damage';
     fetch('guild_damage.csv')
-        .then(res => res.text())
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.text();
+        })
         .then(text => {
             selectEncoding.value = 'UTF-8';
             selectDelimiter.value = '';
             parseCSVText(text, '', autoSelectChar);
         })
         .catch(err => {
-            console.warn('Fetch failed (likely file:// protocol), using built-in preset fallback:', err);
+            console.warn('Fetch failed, using built-in preset fallback:', err);
             selectEncoding.value = 'UTF-8';
             selectDelimiter.value = '';
             parseCSVText(PRESET_GUILD_CSV, '', autoSelectChar);
