@@ -1060,8 +1060,8 @@ function checkUrlParametersOnLoad() {
         }
     }
 
-    // 3. Fallback to preset files if no CSV/data hash fragment is provided
-    if (fileParam === 'guild_damage' || (!fileParam && !hash.includes('csv=') && !hash.includes('data='))) {
+    // 3. Fallback to preset files only if explicitly requested via query parameter
+    if (fileParam === 'guild_damage') {
         loadGuildData(charParam);
         return;
     } else if (fileParam === 'sample') {
