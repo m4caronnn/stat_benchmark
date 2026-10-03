@@ -1087,15 +1087,12 @@ async function copyShareableLink(targetChar = null) {
     
     let longUrl = '';
 
-    // 1. Pack only peers of this character's class into compact JSON format
-    if (charRow) {
-        const charClass = String(charRow[classCol] || '').trim();
-        const classPeers = state.data.filter(r => r[classCol] && String(r[classCol]).trim().toLowerCase() === charClass.toLowerCase());
-        
+    // 1. Pack ALL characters across ALL classes into compact JSON format
+    if (state.data && state.data.length > 0) {
         const validHeaders = state.headers.filter(h => h && h.trim());
         const compactData = {
             h: validHeaders,
-            r: classPeers.map(r => validHeaders.map(h => r[h] !== undefined ? r[h] : ''))
+            r: state.data.map(r => validHeaders.map(h => r[h] !== undefined ? r[h] : ''))
         };
 
         try {
